@@ -55,19 +55,23 @@ Steps:
    ```
    https://github.com/john-ng-hk/CloudBillingPortal.git
    ```
-4. Deploy the application:
+4. Make the `./deploy.sh` and `./delete.sh`  script executable:
+   ```
+   chmod +x de*
+   ```
+6. Deploy the application:
    ```
    ./deploy.sh
    ```
 
    This script will build the SAM application, deploy it to AWS, and update the frontend files with the necessary configuration.
-5. You will then create a user account to access the portal. Go to AWS management console --> Amazon Cognito --> User pools --> Your User Pool --> App clients --> Your App Client
+7. You will then create a user account to access the portal. Go to AWS management console --> Amazon Cognito --> User pools --> Your User Pool --> App clients --> Your App Client
    ![alt text](Images/image.png)
-6. Select the Login pages tab and then click View login Page
+8. Select the Login pages tab and then click View login Page
    ![alt text](Images/LoginPageTab.png)
-7. Create an account as guided, ignore the error message after sign-up
+9. Create an account as guided, ignore the error message after sign-up
    ![alt text](Images/LoginPage.png)
-8. Return to AWS mgmt console and confirm the created user in your user pool
+10. Return to AWS mgmt console and confirm the created user in your user pool
    ![alt text](Images/ConfirmUser.png)
 ### Getting Started
 
@@ -136,7 +140,7 @@ The Cloud Billing Portal follows this data flow:
 5. Lambda Processing: API Gateway triggers the Lambda function, Lambda function processes the billing data from S3, lastly Lambda generates a PDF billing statement
 6. Statement Delivery: PDF is returned to the frontend as a base64-encoded string, Frontend provides a download link for the generated PDF
 
-![alt text](<Diagram/Cloud Billing Portal.png>)
+![alt text](<Images/Cloud Billing Portal.png>)
 
 ## Deployment
 
