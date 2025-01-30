@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Billing Portal</title>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.814.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@5.2.3/dist/amazon-cognito-identity.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Cloud Billing Portal</h1>
+        <form id="loginForm">
+            <label for="username">Username:</label>
+            <input type="text" id="username" required>
+            <label for="password">Password:</label>
+            <input type="password" id="password" required>
+            <button type="submit">Login</button>
+        </form>
+        <p id="loginMessage" class="success-message"></p>
+
+        <div id="uploadSection" style="display: none;">
+            <h1>Upload Files</h1>
+            <input type="file" id="fileInput" multiple>
+            <ul id="fileList"></ul>
+            <button onclick="uploadFiles()">Upload</button>
+            <p id="uploadMessage" class="success-message"></p>
+        </div>
+
+        <div id="additionalInfoSection" style="display: none;">
+            <h2>Invoice Information</h2>
+            <form id="additionalInfoForm" class="centered-form">
+                <label for="companyName">Company Name:</label>
+                <input type="text" id="companyName" required>
+                <label for="addressOne">Address Line 1:</label>
+                <input type="text" id="addressOne" required>
+                <label for="addressTwo">Address Line 2:</label>
+                <input type="text" id="addressTwo">
+                <label for="addressThree">Address Line 3:</label>
+                <input type="text" id="addressThree">
+                <label for="attn">Attn:</label>
+                <input type="text" id="attn" required>
+                <label for="invoiceDate">Invoice Date:</label>
+                <input type="date" id="invoiceDate" required>
+                <label for="cloudVendor">Cloud Vendor:</label>
+                <select id="cloudVendor" required>
+                    <!-- <option value="Alibaba Cloud">Alibaba Cloud</option>
+                    <option value="AWS">AWS</option>
+                    <option value="Azure">Azure</option> -->
+                    <option value="Huawei Cloud">Huawei Cloud</option>
+                </select>
+                <label for="exchangeRate">Exchange Rate (1 USD to HKD):</label>
+                <input type="number" step="0.00000000001" id="exchangeRate" required>
+                <button type="submit">Submit</button>
+            </form>
+            <p id="submissionMessage" class="success-message"></p>
+        </div>
+    </div>
+
+    <script src="aws-cognito.js"></script>
+    <script src="file-upload.js"></script>
+    <script src="additional-info.js"></script>
+</body>
+</html>

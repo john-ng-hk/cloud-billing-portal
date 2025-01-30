@@ -1,0 +1,229 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sam-CloudBillingPortal
+
+  Sample SAM Template for sam-CloudBillingPortal
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 512
+
+Parameters:
+     CloudBillingPortalBackendBucketName:
+        Type: String
+        Default: "cloud-billing-portal-backend-bucket"
+     CloudBillingPortalFrontendBucketName:
+        Type: String
+        Default: "cloudbilling.ddns.net"
+     Region:
+        Type: String
+        Default: "ap-east-1"
+
+Resources:
+# Backend S3 bucket to store CSV
+  CloudBillingPortalBackendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref CloudBillingPortalBackendBucketName
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - 'GET'
+              - 'POST'
+              - 'PUT'
+            AllowedOrigins:
+              - '*'
+            ExposedHeaders:
+              - 'ETag'
+  CloudBillingPortalBackendBucketBucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref CloudBillingPortalBackendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action: 's3:*'
+            Effect: "Allow"
+            Resource:
+              - !Sub 'arn:aws:s3:::${CloudBillingPortalBackendBucketName}/*'
+            Principal: 
+              AWS: !GetAtt CloudBillingPortalIAMAuthRole.Arn
+
+# Frontend S3 bucket
+  CloudBillingPortalFrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref CloudBillingPortalFrontendBucketName
+      WebsiteConfiguration:
+          IndexDocument: index.html
+          ErrorDocument: 404.html
+      PublicAccessBlockConfiguration:
+           BlockPublicPolicy: false
+  CloudBillingPortalFrontendBucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref CloudBillingPortalFrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action: 's3:GetObject'
+            Effect: Allow
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref CloudBillingPortalFrontendBucket
+                - '/*'
+            Principal: '*'
+
+# Lambda Function
+  CloudBillingPortalFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: CloudBillingPortal/
+      Handler: app.lambda_handler
+      Runtime: python3.13
+      Environment: 
+        Variables:
+          BACKEND_BUCKET_NAME: !Ref CloudBillingPortalBackendBucketName
+          FRONTEND_BUCKET_NAME: !Ref CloudBillingPortalFrontendBucketName
+          REGION: !Ref Region
+      Policies:
+        - S3FullAccessPolicy:
+            BucketName:
+              !Ref CloudBillingPortalBackendBucket
+      Architectures:
+        - x86_64
+      Events:
+        GenStatement:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /statement
+            Method: get
+            RestApiId:
+              !Ref CloudBillingPortalAPIGateway
+  CloudBillingPortalAPIGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      BinaryMediaTypes:
+           - 'application/pdf'
+           
+# Cloud Billing Portal Authentication and Authorization with Cognito User Pool & Identity Pool
+  CloudBillingPortalUserpool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: 'CloudBillingPortalUserpool'
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+      AutoVerifiedAttributes:
+        - email
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: false
+  CloudBillingPortalUserpoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref CloudBillingPortalUserpool
+      ClientName: CloudBillingPortalUserpoolClient
+      GenerateSecret: false
+      CallbackURLs:
+           - 'http://localhost'
+      SupportedIdentityProviders:
+           - 'COGNITO'
+      AllowedOAuthScopes:
+           - 'email'
+           - 'openid'
+           - 'phone'
+      AllowedOAuthFlows:
+           - 'code'
+  CloudBillingPortalIdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref CloudBillingPortalUserpoolClient
+          ProviderName: !GetAtt CloudBillingPortalUserpool.ProviderName
+      IdentityPoolName: CloudBillingPortal
+  CloudBIllingPortalUserpoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties: 
+      Domain: 'cloud-billing-portal'
+      ManagedLoginVersion: 2
+      UserPoolId: !GetAtt CloudBillingPortalUserpool.UserPoolId
+  CloudBillingPortalManagedLogin:
+    Type: AWS::Cognito::ManagedLoginBranding
+    Properties:
+      UseCognitoProvidedValues: true
+      ClientId: !GetAtt CloudBillingPortalUserpoolClient.ClientId
+      UserPoolId: !GetAtt CloudBillingPortalUserpool.UserPoolId
+  CloudBillingPortalIdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref CloudBillingPortalIdentityPool
+      Roles:
+        authenticated: !GetAtt CloudBillingPortalIAMAuthRole.Arn
+  CloudBillingPortalIAMAuthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CloudBillingPortalIAMAuthRole
+      Description: A role for authenticated users
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action:
+              - sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud: !Ref CloudBillingPortalIdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: "authenticated"
+      Policies:
+        - PolicyName: CloudBillingPortalIAMAuthRolePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:*
+                Resource: !Sub "arn:aws:s3:::${CloudBillingPortalBackendBucketName}/*"
+
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  Region:
+    Description: "Region"
+    Value: !Ref Region
+  CloudBillingPortalUserpool:
+    Description: "CloudBillingPortalUserpool User Pool Id"
+    Value: !GetAtt CloudBillingPortalUserpool.UserPoolId
+  CloudBillingPortalUserpoolClient:
+    Description: "CloudBillingPortalUserpoolClient Client Id"
+    Value: !GetAtt CloudBillingPortalUserpoolClient.ClientId
+  CloudBillingPortalIdentityPool:
+    Description: "CloudBillingPortalIdentityPool Id"
+    Value: !GetAtt CloudBillingPortalIdentityPool.Id
+  CloudBillingPortalFrontendBucketName:
+    Description: "CloudBillingPortalFrontendBucket Bucket Name"
+    Value: !Ref CloudBillingPortalFrontendBucketName
+  CloudBillingPortalBackendBucketName:
+    Description: "CloudBillingPortalBackendBucket Bucket Name"
+    Value: !Ref CloudBillingPortalBackendBucketName
+  CloudBillingPortalAPIGateway:
+    Description: "CloudBillingPortalAPIGateway APIGateway Prod Stage Endpoint"
+    Value: !Sub "https://${CloudBillingPortalAPIGateway}.execute-api.${Region}.amazonaws.com/prod/statement"
